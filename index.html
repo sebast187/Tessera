@@ -28,6 +28,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 input,select,textarea{font:inherit;color:inherit}
 img,svg{display:block}
 :where(button,a,input,select,textarea){-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+[hidden]{display:none!important}
 
 :root{
   --gutter-w:54px; --head-h:60px; --hour-h:60px; --col-min:138px;
@@ -231,10 +232,12 @@ body::before{
   display:flex;flex-direction:column;max-height:92dvh;transform:translateY(101%);
   transition:transform var(--t) var(--ease);will-change:transform}
 .sheet.is-open{transform:translateY(0)}
-.sheet__handle{flex:none;padding:9px 0 4px;display:grid;place-items:center;touch-action:none;cursor:grab}
-.sheet__handle::before{content:"";width:38px;height:4px;border-radius:999px;background:var(--line-2)}
+.sheet__handle{flex:none;padding:12px 0 6px;display:grid;place-items:center;touch-action:none;cursor:grab}
+.sheet__handle:active{cursor:grabbing}
+.sheet__handle::before{content:"";width:40px;height:5px;border-radius:999px;background:var(--line-2)}
 .sheet__head{flex:none;display:flex;align-items:center;gap:12px;padding:4px 18px 12px;
-  padding-left:max(18px,env(safe-area-inset-left));padding-right:max(18px,env(safe-area-inset-right))}
+  padding-left:max(18px,env(safe-area-inset-left));padding-right:max(18px,env(safe-area-inset-right));
+  touch-action:none;user-select:none;-webkit-user-select:none}
 .sheet__title{font-family:var(--font-display);font-weight:800;font-size:20px;letter-spacing:-.02em;margin-right:auto;min-width:0}
 .sheet__title small{display:block;font-family:var(--font-body);font-weight:500;font-size:12.5px;color:var(--muted);letter-spacing:0;margin-top:2px}
 .sheet__body{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:0 18px 18px;
@@ -436,7 +439,7 @@ body::before{
   <div class="sheet__handle" id="sheetHandle" aria-hidden="true"></div>
   <div class="sheet__head">
     <h2 class="sheet__title" id="sheetTitle">Sheet</h2>
-    <button class="iconbtn" id="sheetClose" aria-label="Close"></button>
+    <button class="iconbtn" id="sheetClose" data-act="close" aria-label="Close"></button>
   </div>
   <div class="sheet__body" id="sheetBody"></div>
   <div class="sheet__foot" id="sheetFoot" hidden></div>
@@ -746,7 +749,7 @@ function renderStats(){
   if(state.ui.mode==='plan' && state.units.length){
     var c=Object.keys(clashSet()).length;
     if(c){pill.hidden=false;pill.className='statpill statpill--warn';
-      pill.innerHTML=svg('warn')+'<b>'+(c/2)+'</b>&nbsp;clash'+((c/2)===1?'':'es');}
+      pill.innerHTML=svg('warn')+'<b>'+c+'</b>&nbsp;clashing';}
     else{pill.hidden=false;pill.className='statpill';pill.innerHTML=svg('check')+'No clashes';}
   }else{pill.hidden=true;}
   $('#weekRange').textContent=weekRangeLabel();
@@ -824,19 +827,39 @@ document.addEventListener('keydown',function(e){
   }
 });
 (function(){
-  var sheet=$('#sheet'),handle=$('#sheetHandle'),startY=0,cur=0,dragging=false;
-  handle.addEventListener('pointerdown',function(e){
-    if(window.innerWidth>=720)return;
-    dragging=true;startY=e.clientY;cur=0;sheet.style.transition='none';
-    try{handle.setPointerCapture(e.pointerId);}catch(x){}
+  var sheet=$('#sheet'),backdrop=$('#backdrop'),head=sheet.querySelector('.sheet__head');
+  var startY=0,cur=0,dragging=false,lastY=0,lastT=0,vel=0,pid=null;
+  function canDrag(){return window.innerWidth<720;}
+  function down(e){
+    if(!canDrag()||dragging)return;
+    /* let taps on real controls (the X) behave normally */
+    if(e.target.closest('button')&&!e.target.closest('#sheetHandle'))return;
+    dragging=true; pid=e.pointerId; startY=e.clientY; cur=0;
+    lastY=e.clientY; lastT=e.timeStamp||Date.now(); vel=0;
+    sheet.style.transition='none';
+    try{e.currentTarget.setPointerCapture(e.pointerId);}catch(x){}
+  }
+  function move(e){
+    if(!dragging||e.pointerId!==pid)return;
+    cur=Math.max(0,e.clientY-startY);
+    var t=e.timeStamp||Date.now();
+    if(t>lastT){vel=(e.clientY-lastY)/(t-lastT);lastY=e.clientY;lastT=t;}
+    sheet.style.transform='translate3d(0,'+cur+'px,0)';
+    backdrop.style.opacity=String(Math.max(0,1-cur/520));
+  }
+  function up(e){
+    if(!dragging)return; dragging=false; pid=null;
+    backdrop.style.opacity='';
+    sheet.style.transition='';
+    if(cur>140||(cur>48&&vel>0.55)){ sheet.style.transform='translate3d(0,101%,0)'; closeSheet(); }
+    else{ sheet.style.transform=''; }
+  }
+  [$('#sheetHandle'),head].forEach(function(z){
+    z.addEventListener('pointerdown',down);
+    z.addEventListener('pointermove',move);
+    z.addEventListener('pointerup',up);
+    z.addEventListener('pointercancel',up);
   });
-  handle.addEventListener('pointermove',function(e){
-    if(!dragging)return;cur=Math.max(0,e.clientY-startY);sheet.style.transform='translateY('+cur+'px)';
-  });
-  function end(){ if(!dragging)return;dragging=false;sheet.style.transition='';
-    if(cur>120){closeSheet();}else{sheet.style.transform='';} }
-  handle.addEventListener('pointerup',end);
-  handle.addEventListener('pointercancel',end);
 })();
 
 /* ============ TOASTS ============ */
@@ -1208,6 +1231,7 @@ document.addEventListener('click',function(e){
   if(CHANGE_ACTS[act])return; /* handled on change */
   var id=el.getAttribute('data-id');
   switch(act){
+    case 'close': closeSheet(); break;
     case 'block': openDetail(el.getAttribute('data-pref')); break;
 
     /* filter: expand */
@@ -1287,6 +1311,7 @@ window.addEventListener('popstate',function(){
 });
 
 /* ============ Direct control wiring ============ */
+$('#backdrop').addEventListener('click',closeSheet);
 $('#themeBtn').addEventListener('click',cycleTheme);
 $('#menuBtn').addEventListener('click',openMenu);
 $('#filterBtn').addEventListener('click',openFilter);

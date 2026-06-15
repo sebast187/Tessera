@@ -21,7 +21,7 @@
    the time scale + unit codes gives a precise, technical feel.
    ============================================================ */
 *,*::before,*::after{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow-x:hidden}
 body,h1,h2,h3,h4,p,figure,ul,ol{margin:0}
 ul,ol{list-style:none;padding:0}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
@@ -88,7 +88,7 @@ body::before{
 :where(button,a,input,select,textarea,[tabindex]):focus-visible{
   outline:2px solid var(--ring);outline-offset:2px;border-radius:6px}
 
-.app{display:flex;flex-direction:column;height:100dvh}
+.app{display:flex;flex-direction:column;height:100vh;height:100dvh;max-width:100vw;overflow:hidden}
 .topbar{flex:none;background:color-mix(in srgb,var(--panel) 86%,transparent);
   backdrop-filter:saturate(1.4) blur(14px);-webkit-backdrop-filter:saturate(1.4) blur(14px);
   border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
@@ -355,7 +355,26 @@ body::before{
 .toast.is-in{transform:translateY(0);opacity:1}
 .toast button{background:color-mix(in srgb,var(--ink-fg) 16%,transparent);color:var(--ink-fg);padding:6px 12px;border-radius:9px;font-weight:700;font-size:13px}
 
-@media (prefers-reduced-motion:reduce){*{animation-duration:.001ms !important;transition-duration:.001ms !important}}
+/* ---- Mobile: fit the whole week to the screen at 100% (no zoom needed) ---- */
+@media (max-width:640px){
+  :root{ --col-min:44px; --gutter-w:44px; --hour-h:56px; }
+  .topbar__row{gap:9px;padding:10px 12px}
+  .brand__name{font-size:18px}
+  .iconbtn{width:36px;height:36px}
+  .block{padding:5px 5px 5px 9px}
+  .block::before{width:3px}
+  .block__code{font-size:10.5px}
+  .block__badge{font-size:8px;padding:1px 3px}
+  .hourlabel{width:36px;right:5px;font-size:9.5px}
+  .dayhead__n{font-size:16px;width:26px;height:26px}
+  .dayhead__d{font-size:9.5px;letter-spacing:.08em}
+}
+@media (max-width:400px){
+  #addBtn span:last-child{display:none}
+  #addBtn{padding:0 11px}
+}
+
+
 @media (prefers-reduced-motion:no-preference){
   .reveal{animation:rise .5s var(--ease) both}
   @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
@@ -1212,7 +1231,7 @@ document.addEventListener('click',function(e){
       if(cont){ [].forEach.call(cont.querySelectorAll('.prefrow'),function(r){r.classList.remove('is-chosen');});
         [].forEach.call(cont.querySelectorAll('.choosebtn'),function(b){b.classList.remove('is-on');b.textContent='Choose';});
         var row=el.closest('.prefrow'); if(row)row.classList.add('is-chosen'); el.classList.add('is-on'); el.textContent='Chosen'; }
-      save(); renderStats(); render(); break; }
+      save(); render(); break; }
     case 'choose-detail':{ var ff=findPref(id); if(!ff)break; state.ui.chosen[ff.act.id]=id; save(); closeSheet(); render(); toast('Set as your pick'); break; }
 
     /* edit / delete unit */
@@ -1313,6 +1332,8 @@ function loadSample(){
 /* ============ INIT ============ */
 function init(){
   hydrateIcons(document);
+  $('#menuBtn').innerHTML=svg('dots');
+  $('#sheetClose').innerHTML=svg('close');
   var saved=Store.load();
   state = saved || defaultState();
   /* backfill any missing ui keys for forward-compat */
